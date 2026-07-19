@@ -4,7 +4,7 @@ import telebot
 from telebot import types
 
 # আপনার বটের টোকেন
-BOT_TOKEN = 88562158:AAFpxVrNp0t43af9iKB7IE' + '-fARFmuYaJZEE''
+BOT_TOKEN = 88562158:AAFpxVrNp0t43af9iKB7IE' + '-fARFmuYaJZEE'
 bot = telebot.TeleBot(BOT_TOKEN)
 
 ADMIN_EMAIL = "maisha3gh123.com"
