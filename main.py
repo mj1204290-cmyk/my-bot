@@ -1,10 +1,10 @@
 from flask import Flask
 from threading import Thread
-import os
 import telebot
 from telebot import types
 
-BOT_TOKEN = '8856215877:AAFpxVrNp0t43af9iKB7IE-fARFmuYaJZEE'
+# আপনার বটের টোকেন
+BOT_TOKEN = 88562158:AAFpxVrNp0t43af9iKB7IE' + '-fARFmuYaJZEE''
 bot = telebot.TeleBot(BOT_TOKEN)
 
 ADMIN_EMAIL = "maisha3gh123.com"
@@ -13,7 +13,7 @@ ADMIN_PASS = "Maisha3gh"
 user_state = {}
 
 # ১. লগইন কমান্ড
-@bot.message_handler(commands=['admin'])
+@bot.message_handler(commands=['admin', 'panel'])
 def start_login(message):
     bot.send_message(message.chat.id, "অ্যাডমিন প্যানেলে স্বাগতম। ইমেইল দিন:")
     user_state[message.chat.id] = {'step': 'ask_email'}
@@ -22,7 +22,7 @@ def start_login(message):
 @bot.message_handler(func=lambda message: message.chat.id in user_state)
 def handle_login(message):
     chat_id = message.chat.id
-    state = user_state[chat_id]['step']
+    state = user_state[chat_id].get('step')
     
     if state == 'ask_email':
         if message.text == ADMIN_EMAIL:
@@ -35,20 +35,21 @@ def handle_login(message):
     elif state == 'ask_pass':
         if message.text == ADMIN_PASS:
             user_state[chat_id]['step'] = 'logged_in'
-            # সফল লগইনের পর প্যানেল দেখাবে
             show_admin_panel(chat_id)
         else:
             bot.send_message(chat_id, "ভুল পাসওয়ার্ড! লগইন বাতিল।")
             del user_state[chat_id]
+    
+    elif state == 'logged_in':
+        admin_actions(message)
 
-# ৩. হাইড করা প্যানেল দেখানোর ফাংশন
+# ৩. প্যানেল দেখানোর ফাংশন
 def show_admin_panel(chat_id):
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
     markup.add("📊 ইউজার লিস্ট", "💰 উইথড্র রিকোয়েস্ট", "❌ লগআউট")
     bot.send_message(chat_id, "✅ লগইন সফল! আপনি এখন অ্যাডমিন মোডে আছেন।", reply_markup=markup)
 
 # ৪. প্যানেলের বাটনগুলোর কাজ
-@bot.message_handler(func=lambda message: user_state.get(message.chat.id, {}).get('step') == 'logged_in')
 def admin_actions(message):
     if message.text == "📊 ইউজার লিস্ট":
         bot.send_message(message.chat.id, "এখানে ইউজার লিস্ট দেখাবে...")
@@ -58,9 +59,10 @@ def admin_actions(message):
         user_state[message.chat.id]['step'] = 'logged_out'
         markup = types.ReplyKeyboardRemove()
         bot.send_message(message.chat.id, "লগআউট সফল! প্যানেল হাইড করা হয়েছে।", reply_markup=markup)
-bot.polling()
-app = Flask('')
+        del user_state[message.chat.id]
 
+# Flask সার্ভার চালু করা (রেন্ডারের জন্য)
+app = Flask('')
 @app.route('/')
 def home():
     return "Bot is running!"
@@ -68,5 +70,6 @@ def home():
 def run():
     app.run(host='0.0.0.0', port=8080)
 
-t = Thread(target=run)
-t.start()
+if __name__ == "__main__":
+    Thread(target=run).start()
+    bot.polling(none_stop=True)
