@@ -3,11 +3,11 @@ from telebot import types
 from flask import Flask
 from threading import Thread
 
-# আপনার বটের টোকেন
+# বটের টোকেন
 BOT_TOKEN = '8856215877:AAFpxVrNp0t43af9iKB7IE-fARFmuYaJZEE'
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# আপনার ইমেইল এবং পাসওয়ার্ড
+# অ্যাডমিন ক্রেডেন্সিয়ালস
 MY_EMAIL = "maisha3gh.com"
 MY_PASS = "maisha3gh123"
 
@@ -20,7 +20,7 @@ withdraw_requests = []
 @bot.message_handler(commands=['start'])
 def start(message):
     user_list[message.chat.id] = message.from_user.first_name
-    bot.reply_to(message, "স্বাগতম! কাজ শুরু করতে /withdraw কমান্ড দিন।")
+    bot.reply_to(message, "স্বাগতম! উইথড্র দিতে /withdraw কমান্ড দিন।")
 
 @bot.message_handler(commands=['withdraw'])
 def withdraw_start(message):
@@ -29,26 +29,26 @@ def withdraw_start(message):
     bot.reply_to(message, "পেমেন্ট মেথড সিলেক্ট করুন:", reply_markup=markup)
     user_state[message.chat.id] = {'step': 'select_method'}
 
-# --- অ্যাডমিন এবং ইন্টারঅ্যাকশন হ্যান্ডলার ---
+# --- মেইন হ্যান্ডলার ---
 @bot.message_handler(func=lambda m: True)
 def handle_all(message):
     chat_id = message.chat.id
     
-    # উইথড্র ফ্লো (ইউজার)
+    # ১. উইথড্র প্রসেস (ইউজার)
     if chat_id in user_state and user_state[chat_id].get('step') == 'select_method':
         user_state[chat_id]['method'] = message.text
-        user_state[chat_id]['step'] = 'enter_amount'
-        bot.reply_to(message, f"{message.text} সিলেক্ট করেছেন। কত টাকা উইথড্র করবেন লিখুন:")
+        user_state[chat_id]['step'] = 'enter_details'
+        bot.reply_to(message, f"{message.text} সিলেক্ট করেছেন। আপনার টাকার পরিমাণ এবং নাম্বার একসাথে লিখুন (যেমন: 500 017xxxxxxxx):")
         return
 
-    if chat_id in user_state and user_state[chat_id].get('step') == 'enter_amount':
+    if chat_id in user_state and user_state[chat_id].get('step') == 'enter_details':
         method = user_state[chat_id]['method']
-        withdraw_requests.append(f"👤 {message.from_user.first_name} | মেথড: {method} | টাকা: {message.text}")
-        bot.reply_to(message, "আপনার উইথড্র রিকোয়েস্টটি অ্যাডমিনের কাছে পাঠানো হয়েছে।")
+        withdraw_requests.append(f"👤 {message.from_user.first_name} | মেথড: {method} | তথ্য: {message.text}")
+        bot.reply_to(message, "আপনার রিকোয়েস্টটি জমা হয়েছে। অ্যাডমিন চেক করে পেমেন্ট করে দেবেন।")
         del user_state[chat_id]
         return
 
-    # লগইন ফ্লো (অ্যাডমিন)
+    # ২. অ্যাডমিন লগইন প্রসেস
     if message.text == '/admin':
         bot.send_message(chat_id, "অ্যাডমিন প্যানেলে স্বাগতম! ইমেইল দিন:")
         user_state[chat_id] = {'step': 'email'}
@@ -62,7 +62,7 @@ def handle_all(message):
                 user_state[chat_id]['step'] = 'password'
                 bot.send_message(chat_id, "ইমেইল সঠিক! পাসওয়ার্ড দিন:")
             else:
-                bot.send_message(chat_id, "ভুল ইমেইল! লগইন বাতিল।"); del user_state[chat_id]
+                bot.send_message(chat_id, "ভুল ইমেইল!"); del user_state[chat_id]
         
         elif state == 'password':
             if message.text == MY_PASS:
@@ -71,20 +71,41 @@ def handle_all(message):
                 markup.add("📊 ইউজার লিস্ট", "💰 উইথড্র রিকোয়েস্ট", "❌ লগআউট")
                 bot.send_message(chat_id, "লগইন সফল! ✅", reply_markup=markup)
             else:
-                bot.send_message(chat_id, "ভুল পাসওয়ার্ড! লগইন বাতিল।"); del user_state[chat_id]
+                bot.send_message(chat_id, "ভুল পাসওয়ার্ড!"); del user_state[chat_id]
         
+        # ৩. অ্যাডমিন প্যানেল অ্যাকশন
         elif state == 'logged_in':
             if message.text == "📊 ইউজার লিস্ট":
-                msg = "ইউজার তালিকা:\n" + "\n".join([f"- {name}" for name in user_list.values()])
-                bot.send_message(chat_id, msg if user_list else "কেউ নেই")
+                msg = "ইউজার তালিকা:\n" + ("\n".join([f"- {name}" for name in user_list.values()]) if user_list else "কেউ নেই")
+                bot.send_message(chat_id, msg)
+            
             elif message.text == "💰 উইথড্র রিকোয়েস্ট":
-                msg = "উইথড্র রিকোয়েস্ট:\n" + "\n".join(withdraw_requests)
-                bot.send_message(chat_id, msg if withdraw_requests else "কোনো রিকোয়েস্ট নেই")
+                if not withdraw_requests:
+                    bot.send_message(chat_id, "কোনো রিকোয়েস্ট নেই।")
+                else:
+                    for i, req in enumerate(withdraw_requests):
+                        markup = types.InlineKeyboardMarkup()
+                        paid_btn = types.InlineKeyboardButton("✅ পেমেন্ট সম্পন্ন (Paid)", callback_data=f"paid_{i}")
+                        markup.add(paid_btn)
+                        bot.send_message(chat_id, f"রিকোয়েস্ট #{i+1}:\n{req}", reply_markup=markup)
+            
             elif message.text == "❌ লগআউট":
                 del user_state[chat_id]
                 bot.send_message(chat_id, "লগআউট সফল!", reply_markup=types.ReplyKeyboardRemove())
 
-# --- Flask সার্ভার ---
+# --- পেমেন্ট এপ্রুভ হ্যান্ডলার ---
+@bot.callback_query_handler(func=lambda call: call.data.startswith('paid_'))
+def handle_paid(call):
+    index = int(call.data.split('_')[1])
+    if index < len(withdraw_requests):
+        req_data = withdraw_requests[index]
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, 
+                              text=f"✅ পেমেন্ট সম্পন্ন করা হয়েছে:\n{req_data}")
+        bot.answer_callback_query(call.id, "সফলভাবে মার্ক করা হয়েছে!")
+    else:
+        bot.answer_callback_query(call.id, "এটি ইতিমধ্যে মার্ক করা হয়েছে।")
+
+# --- সার্ভার ---
 app = Flask('')
 @app.route('/')
 def home(): return "Bot is running!"
