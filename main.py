@@ -1,117 +1,98 @@
-import telebot
-from telebot import types
-from flask import Flask
-from threading import Thread
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jm Android Earning</title>
+    <style>
+        body { font-family: sans-serif; background: #fffde7; margin: 0; padding-bottom: 70px; }
+        .page { display: none; padding: 15px; }
+        .active { display: block; }
+        .card { background: white; padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #ffd700; }
+        button { background: #fbc02d; color: #000; border: none; padding: 12px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 5px; }
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; background: #fff; padding: 10px 0; border-top: 2px solid #fbc02d; z-index: 1000; }
+        input, select { width: 90%; padding: 10px; margin: 5px 0; border: 1px solid #ccc; border-radius: 5px; }
+    </style>
+</head>
+<body>
 
-# বটের টোকেন
-BOT_TOKEN = '8856215877:AAFpxVrNp0t43af9iKB7IE-fARFmuYaJZEE'
-bot = telebot.TeleBot(BOT_TOKEN)
+<!-- পেজগুলো এখানে থাকবে -->
+<div id="home" class="page active">
+    <h2>হোম</h2>
+    <div class="card">
+        <p>মেইন ব্যালেন্স: <span id="t-balance">0</span> টাকা</p>
+        <p>আজকের এড: <span id="t-ad">0</span>/20</p>
+    </div>
+</div>
 
-# অ্যাডমিন ক্রেডেন্সিয়ালস
-MY_EMAIL = "maisha3gh.com"
-MY_PASS = "maisha3gh123"
+<div id="task" class="page">
+    <h2>টাস্ক</h2>
+    <div class="card">
+        <button onclick="watchAd()">এড দেখুন (+৫ টাকা)</button>
+    </div>
+</div>
 
-# ডাটা স্টোরেজ
-user_state = {}
-user_list = {} 
-withdraw_requests = []
+<div id="profile" class="page">
+    <h2>প্রোফাইল</h2>
+    <div class="card" style="background: #2c2c2c; color: white; border-radius: 15px; padding: 20px;">
+        <p>আইডি: <span id="p-id">Loading...</span></p>
+        <p>ব্যালেন্স: <span id="p-balance">0</span> টাকা</p>
+        <button onclick="copyRefLink()" style="background: #444; color: white;">🔗 রেফারেল লিংক কপি</button>
+    </div>
+</div>
 
-# --- ইউজার কমান্ডস ---
-@bot.message_handler(commands=['start'])
-def start(message):
-    user_list[message.chat.id] = message.from_user.first_name
-    bot.reply_to(message, "স্বাগতম! উইথড্র দিতে /withdraw কমান্ড দিন।")
+<nav class="bottom-nav">
+    <button onclick="showPage('home')">হোম</button>
+    <button onclick="showPage('task')">টাস্ক</button>
+    <button onclick="showPage('profile')">প্রোফাইল</button>
+</nav>
 
-@bot.message_handler(commands=['withdraw'])
-def withdraw_start(message):
-    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-    markup.add("বিকাশ", "নগদ")
-    bot.reply_to(message, "পেমেন্ট মেথড সিলেক্ট করুন:", reply_markup=markup)
-    user_state[message.chat.id] = {'step': 'select_method'}
+<script>
+    // একবারে সব ডাটা লোড করে মেমোরিতে রাখা (এটিই ফাস্ট করার উপায়)
+    let userId = localStorage.getItem('userId') || 'JM-' + Math.floor(10000000 + Math.random() * 90000000);
+    let balance = parseFloat(localStorage.getItem('balance')) || 0;
+    let adCount = parseInt(localStorage.getItem('adCount')) || 0;
 
-# --- মেইন হ্যান্ডলার ---
-@bot.message_handler(func=lambda m: True)
-def handle_all(message):
-    chat_id = message.chat.id
-    
-    # ১. উইথড্র প্রসেস (ইউজার)
-    if chat_id in user_state and user_state[chat_id].get('step') == 'select_method':
-        user_state[chat_id]['method'] = message.text
-        user_state[chat_id]['step'] = 'enter_details'
-        bot.reply_to(message, f"{message.text} সিলেক্ট করেছেন। আপনার টাকার পরিমাণ এবং নাম্বার একসাথে লিখুন (যেমন: 500 017xxxxxxxx):")
-        return
+    // প্রথমবারের জন্য সেভ করা
+    if (!localStorage.getItem('userId')) {
+        localStorage.setItem('userId', userId);
+        localStorage.setItem('joinDate', new Date().toLocaleDateString());
+    }
 
-    if chat_id in user_state and user_state[chat_id].get('step') == 'enter_details':
-        method = user_state[chat_id]['method']
-        withdraw_requests.append(f"👤 {message.from_user.first_name} | মেথড: {method} | তথ্য: {message.text}")
-        bot.reply_to(message, "আপনার রিকোয়েস্টটি জমা হয়েছে। অ্যাডমিন চেক করে পেমেন্ট করে দেবেন।")
-        del user_state[chat_id]
-        return
+    function showPage(id) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
 
-    # ২. অ্যাডমিন লগইন প্রসেস
-    if message.text == '/admin':
-        bot.send_message(chat_id, "অ্যাডমিন প্যানেলে স্বাগতম! ইমেইল দিন:")
-        user_state[chat_id] = {'step': 'email'}
-        return
+    function updateDisplay() {
+        document.getElementById('t-balance').innerText = balance;
+        document.getElementById('t-ad').innerText = adCount;
+        document.getElementById('p-id').innerText = userId;
+        document.getElementById('p-balance').innerText = balance;
+    }
 
-    if chat_id in user_state:
-        state = user_state[chat_id].get('step')
+    function watchAd() {
+        if(adCount >= 20) { alert('লিমিট শেষ!'); return; }
         
-        if state == 'email':
-            if message.text == MY_EMAIL:
-                user_state[chat_id]['step'] = 'password'
-                bot.send_message(chat_id, "ইমেইল সঠিক! পাসওয়ার্ড দিন:")
-            else:
-                bot.send_message(chat_id, "ভুল ইমেইল!"); del user_state[chat_id]
+        // বাটন টিপলে সাথে সাথে আপডেট হবে
+        balance += 5;
+        adCount++;
         
-        elif state == 'password':
-            if message.text == MY_PASS:
-                user_state[chat_id]['step'] = 'logged_in'
-                markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-                markup.add("📊 ইউজার লিস্ট", "💰 উইথড্র রিকোয়েস্ট", "❌ লগআউট")
-                bot.send_message(chat_id, "লগইন সফল! ✅", reply_markup=markup)
-            else:
-                bot.send_message(chat_id, "ভুল পাসওয়ার্ড!"); del user_state[chat_id]
+        // লোকাল স্টোরেজে সেভ করা
+        localStorage.setItem('balance', balance);
+        localStorage.setItem('adCount', adCount);
         
-        # ৩. অ্যাডমিন প্যানেল অ্যাকশন
-        elif state == 'logged_in':
-            if message.text == "📊 ইউজার লিস্ট":
-                msg = "ইউজার তালিকা:\n" + ("\n".join([f"- {name}" for name in user_list.values()]) if user_list else "কেউ নেই")
-                bot.send_message(chat_id, msg)
-            
-            elif message.text == "💰 উইথড্র রিকোয়েস্ট":
-                if not withdraw_requests:
-                    bot.send_message(chat_id, "কোনো রিকোয়েস্ট নেই।")
-                else:
-                    for i, req in enumerate(withdraw_requests):
-                        markup = types.InlineKeyboardMarkup()
-                        paid_btn = types.InlineKeyboardButton("✅ পেমেন্ট সম্পন্ন (Paid)", callback_data=f"paid_{i}")
-                        markup.add(paid_btn)
-                        bot.send_message(chat_id, f"রিকোয়েস্ট #{i+1}:\n{req}", reply_markup=markup)
-            
-            elif message.text == "❌ লগআউট":
-                del user_state[chat_id]
-                bot.send_message(chat_id, "লগআউট সফল!", reply_markup=types.ReplyKeyboardRemove())
+        updateDisplay();
+        alert('সফলভাবে ৫ টাকা যোগ হয়েছে!');
+    }
 
-# --- পেমেন্ট এপ্রুভ হ্যান্ডলার ---
-@bot.callback_query_handler(func=lambda call: call.data.startswith('paid_'))
-def handle_paid(call):
-    index = int(call.data.split('_')[1])
-    if index < len(withdraw_requests):
-        req_data = withdraw_requests[index]
-        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, 
-                              text=f"✅ পেমেন্ট সম্পন্ন করা হয়েছে:\n{req_data}")
-        bot.answer_callback_query(call.id, "সফলভাবে মার্ক করা হয়েছে!")
-    else:
-        bot.answer_callback_query(call.id, "এটি ইতিমধ্যে মার্ক করা হয়েছে।")
+    function copyRefLink() {
+        const refLink = "https://t.me/Cabsyab10qq_bot?start=" + userId;
+        navigator.clipboard.writeText(refLink);
+        alert("লিংক কপি হয়েছে!");
+    }
 
-# --- সার্ভার ---
-app = Flask('')
-@app.route('/')
-def home(): return "Bot is running!"
-
-def run_server(): app.run(host='0.0.0.0', port=8080)
-
-if __name__ == "__main__":
-    Thread(target=run_server).start()
-    bot.polling(none_stop=True)
+    updateDisplay();
+</script>
+</body>
+</html>
